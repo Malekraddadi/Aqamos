@@ -17,25 +17,19 @@ export default function Page() {
       setError(null);
 
       try {
-        const dexRes = await fetch(
-          `https://api.dexscreener.com/latest/dex/search?q=${token}`
-        );
-        const dex = await dexRes.json();
+        const res = await fetch(`/api/scan?token=${token}`);
+        const json = await res.json();
 
-        const debotRes = await fetch(
-          `https://debot.ai/api/community/signal/channel/token/kline?chain=solana&tokens=${token}`
-        );
-        const debot = await debotRes.json();
-
-        if (dex?.pairs?.length) {
-          setPair(dex.pairs[0]);
-        } else {
-          setPair(null);
+        if (json.error) {
+          throw new Error(json.error);
         }
 
-        setSignal(debot?.data?.slice(-1)?.[0] || null);
+        setPair(json.pair);
+        setSignal(json.signal);
       } catch (e) {
         setError("Failed to fetch data");
+        setPair(null);
+        setSignal(null);
       }
 
       setLoading(false);
@@ -52,21 +46,35 @@ export default function Page() {
 
       <input
         value={token}
-        onChange={(e) => setToken(e.target.value)}
-        style={{ width: "100%", padding: 10, marginBottom: 10 }}
+        onChange={(e) => setToken(e.target.value.trim())}
+        placeholder="Paste token mint (pump.fun or Raydium)"
+        style={{
+          width: "100%",
+          padding: 10,
+          marginBottom: 10,
+          fontSize: 14
+        }}
       />
 
       {loading && <p>⏳ Loading live data…</p>}
+
       {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {!loading && !pair && (
+      {!loading && !pair && !error && (
         <p style={{ color: "orange" }}>
           ⚠️ Token not indexed yet or no liquidity
         </p>
       )}
 
       {pair && (
-        <div style={{ border: "1px solid #333", padding: 10 }}>
+        <div
+          style={{
+            border: "1px solid #333",
+            padding: 12,
+            borderRadius: 6,
+            marginTop: 10
+          }}
+        >
           <p><strong>Name:</strong> {pair.baseToken.name}</p>
           <p><strong>Symbol:</strong> {pair.baseToken.symbol}</p>
           <p><strong>DEX:</strong> {pair.dexId}</p>
@@ -78,7 +86,7 @@ export default function Page() {
       )}
 
       {signal && (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 12 }}>
           <p>
             📊 <strong>DeBotAI Signal Close:</strong> {signal.close}
           </p>
@@ -92,7 +100,7 @@ export default function Page() {
         {signal && pair
           ? "🟢 LIVE + SIGNAL CONFIRMED"
           : signal
-          ? "🟡 EARLY SIGNAL"
+          ? "🟡 EARLY SIGNAL (PUMP.FUN)"
           : "❌ NO SIGNAL"}
       </p>
     </main>
