@@ -27,10 +27,10 @@ export default function Page() {
         );
         const debot = await debotRes.json();
 
-        if (!dex?.pairs?.length) {
-          setPair(null);
+        if (dex?.pairs?.length) {
+          setPair(dex.pairs[0]);
         } else {
-          setPair(dex.pairs[0]); // pumpfun supported
+          setPair(null);
         }
 
         setSignal(debot?.data?.slice(-1)?.[0] || null);
@@ -42,8 +42,8 @@ export default function Page() {
     }
 
     load();
-    const i = setInterval(load, 15000);
-    return () => clearInterval(i);
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
   }, [token]);
 
   return (
@@ -61,7 +61,7 @@ export default function Page() {
 
       {!loading && !pair && (
         <p style={{ color: "orange" }}>
-          ⚠️ Token not indexed yet (or no liquidity)
+          ⚠️ Token not indexed yet or no liquidity
         </p>
       )}
 
@@ -95,23 +95,6 @@ export default function Page() {
           ? "🟡 EARLY SIGNAL"
           : "❌ NO SIGNAL"}
       </p>
-    </main>
-  );
-}      />
-
-      {data && (
-        <>
-          <p>Price: ${data.priceUsd}</p>
-          <p>Liquidity: ${data.liquidity?.usd}</p>
-          <p>Volume: ${data.volume?.h24}</p>
-        </>
-      )}
-
-      {signal && (
-        <p>
-          DeBot Signal → Close: {signal.close}
-        </p>
-      )}
     </main>
   );
 }
