@@ -1,4 +1,14 @@
-export const runtime = "nodejs"; // 🚨 THIS IS THE KEY FIX
+export const runtime = "nodejs";
+
+async function safeJson(res) {
+  const text = await res.text();
+  if (!text || text.startsWith("<")) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -12,34 +22,39 @@ export async function GET(request) {
   }
 
   try {
+    // 1️⃣ DexScreener (primary – always reliable)
     const dexRes = await fetch(
       `https://api.dexscreener.com/latest/dex/search?q=${token}`,
-      {
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        },
-        cache: "no-store"
-      }
+      { cache: "no-store" }
     );
+    const dex = await safeJson(dexRes);
+    const pair = dex?.pairs?.[0] || null;
 
-    const dex = await dexRes.json();
+    // 2️⃣ DeBotAI (secondary – optional)
+    let debotSignal = null;
+    try {
+      const debotRes = await fetch(
+        `https://debot.ai/api/community/signal/channel/token/kline?chain=solana&tokens=${token}`,
+        { cache: "no-store" }
+      );
+      const debot = await safeJson(debotRes);
+      debotSignal = debot?.data?.slice(-1)?.[0] || null;
+    } catch {
+      debotSignal = null;
+    }
 
-    const debotRes = await fetch(
-      `https://debot.ai/api/community/signal/channel/token/kline?chain=solana&tokens=${token}`,
-      {
-        headers: {
-          "User-Agent": "Mozilla/5.0"
-        },
-        cache: "no-store"
-      }
-    );
-
-    const debot = await debotRes.json();
+    // 3️⃣ Decision logic (Dex-only fallback)
+    const decision =
+      pair && pair.volume?.h24 > 5000 && pair.txns?.h1?.buys > pair.txns?.h1?.sells
+        ? "BUY"
+        : "NO_SIGNAL";
 
     return new Response(
       JSON.stringify({
-        pair: dex?.pairs?.[0] || null,
-        signal: debot?.data?.slice(-1)?.[0] || null
+        token,
+        pair,
+        debotSignal,
+        decision
       }),
       {
         status: 200,
@@ -52,8 +67,8 @@ export async function GET(request) {
   } catch (err) {
     return new Response(
       JSON.stringify({
-        error: "Fetch failed",
-        details: err?.message || "unknown"
+        error: "Scan failed",
+        details: err.message
       }),
       { status: 500 }
     );
